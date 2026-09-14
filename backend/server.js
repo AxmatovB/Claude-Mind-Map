@@ -121,25 +121,49 @@ function broadcast(msg) {
 
 // ---- Loopback-only access guard ----
 // This app has zero authentication and exposes destructive endpoints
-// (delete a session's transcript, wipe an entire agent's history). Its
-// safety model is entirely "only reachable from this machine" — so that
-// has to be enforced explicitly, not just assumed from the Docker port
-// mapping. A request's Host header reflects what the browser's address bar
-// says, which an attacker can point at "localhost" via DNS rebinding even
-// while the request itself is driven by a page on a completely different
-// origin; checking Host (not just relying on CORS/Origin, which a
-// same-origin DNS-rebound page still satisfies) is what actually blocks
-// that. Applied to both the HTTP API and the WebSocket upgrade below.
+// (delete a session's transcript, wipe an entire agent's history) plus a
+// live feed of session activity over WebSocket. Its safety model is
+// entirely "only reachable from this machine" — so that has to be enforced
+// explicitly, not just assumed from the Docker port mapping. Two DIFFERENT
+// headers guard two DIFFERENT attacks, and neither substitutes for the
+// other:
+//   - Host: what address the request was sent TO. An attacker can get a
+//     browser to send this as "localhost" via DNS rebinding (resolving an
+//     attacker-controlled domain to 127.0.0.1 mid-session) while the page
+//     itself is still on a different origin — checking Host catches that.
+//   - Origin: what page/site INITIATED the request. A page on any other
+//     site can, without any DNS trickery, directly open
+//     ws://localhost:4545/ws — the browser will send a perfectly correct
+//     Host header (that genuinely is where it's connecting) but an Origin
+//     of that other site. This is cross-site WebSocket hijacking (CSWSH):
+//     WebSocket connections aren't subject to the same-origin policy the
+//     way fetch()/XHR are, so only an explicit Origin check on the server
+//     blocks it — Host alone does not, since Host is correct in this attack.
+// Both checks below only reject when the header is PRESENT and mismatched;
+// a missing Origin (e.g. curl, or a non-browser WebSocket client) is
+// allowed, since the browser is the only client that can't spoof Origin —
+// that's also what keeps the curl examples in the README working.
 function isLoopbackHost(hostHeader) {
   if (!hostHeader) return false;
   const host = hostHeader.split(':')[0].toLowerCase();
   return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
 }
 
+function isAllowedOrigin(originHeader) {
+  if (!originHeader) return true; // non-browser clients don't send Origin
+  try {
+    const { hostname } = new URL(originHeader);
+    const host = hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
 // ---- Express app ----
 const app = express();
 app.use((req, res, next) => {
-  if (!isLoopbackHost(req.headers.host)) {
+  if (!isLoopbackHost(req.headers.host) || !isAllowedOrigin(req.headers.origin)) {
     return res.status(403).json({ error: 'forbidden: this app only accepts loopback requests' });
   }
   next();
@@ -309,15 +333,18 @@ setupWatchers();
 const server = http.createServer(app);
 // WebSocket upgrades bypass the Express middleware chain entirely (they're
 // handled via the http.Server's 'upgrade' event, not Express's 'request'
-// event), so the Host guard above doesn't cover this — it needs its own
-// check here. Without it, any page (via DNS rebinding or an attacker
-// convincing a browser to open ws://localhost:PORT/ws directly) could open
-// a live WebSocket and receive every session_update/activity broadcast
-// (project paths, session ids, tool usage) regardless of the HTTP guard.
+// event), so the guard above doesn't cover this — it needs its own check
+// here, and needs BOTH the Host and Origin checks (see the comment on
+// isLoopbackHost/isAllowedOrigin above): Host alone stops DNS rebinding but
+// not a page on any other site directly opening ws://localhost:PORT/ws
+// (cross-site WebSocket hijacking) — only the Origin check stops that.
+// Without both, any page you have open could receive every
+// session_update/activity broadcast (project paths, session ids, tool
+// usage) this feed carries.
 wss = new WebSocketServer({
   server,
   path: '/ws',
-  verifyClient: (info) => isLoopbackHost(info.req.headers.host),
+  verifyClient: (info) => isLoopbackHost(info.req.headers.host) && isAllowedOrigin(info.origin),
 });
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'hello', sessions: sessionStore.size }));
