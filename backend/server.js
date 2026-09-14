@@ -62,9 +62,24 @@ function countAgent(agent) {
 }
 
 function markActive() {
+  // Reads each file's real mtime from disk right now, rather than trusting
+  // the cached s.mtime from the last full reparse. That cache is only
+  // refreshed when chokidar's debounced 'change' event fires (gated by a
+  // 400ms no-further-writes window in awaitWriteFinish) — during an actual
+  // back-and-forth conversation, a transcript can be appended to more
+  // often than that quiet window allows, so the cached mtime goes stale
+  // and the session never gets marked live even though it plainly is. A
+  // stat() per session is cheap and gives "is this live" real-time
+  // accuracy independent of how backed-up the reparse pipeline is.
   const now = Date.now();
-  for (const s of sessionStore.values()) {
-    s.active = now - s.mtime < ACTIVE_WINDOW_MS;
+  for (const [filePath, s] of sessionStore) {
+    let mtime = s.mtime;
+    try {
+      mtime = fs.statSync(filePath).mtimeMs;
+    } catch {
+      // file briefly mid-delete/rename; fall back to the cached value
+    }
+    s.active = now - mtime < ACTIVE_WINDOW_MS;
   }
 }
 
