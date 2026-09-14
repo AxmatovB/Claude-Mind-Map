@@ -147,6 +147,7 @@ flowchart LR
 ## Requirements
 
 - [ ] Docker Engine and Docker Compose v2 (tested with Docker 29 / Compose v5)
+- [ ] Bash (macOS/Linux/WSL/Git Bash) to run `setup.sh`, **or** PowerShell (built into Windows) to run `setup.ps1` — either generates `.env` for you, see [Installation & Quick Start](#installation--quick-start)
 - [ ] Node.js 20+ — only needed if you want to run `backend/server.js` outside Docker, or run the screenshot tooling in `scripts/`
 - [ ] One or more of: **Claude Code**, **Codex CLI**, or **Gemini CLI** already installed and used at least once, so there's `.jsonl` session data under `~/.claude`, `~/.codex`, or `~/.gemini` to visualize
 - [ ] Free disk space roughly equal to your combined agent session history (the app doesn't copy or duplicate it — it reads the mounted files directly — but leave headroom; a heavy CLI user can accumulate 1 GB+ of transcripts)
@@ -182,9 +183,9 @@ docker compose down
 
 | Variable | Default | Description |
 |---|---|---|
-| `CLAUDE_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.claude` directory; only its `projects/` subfolder is bind-mounted (read-only) into the container |
-| `CODEX_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.codex` directory; only its `sessions/` subfolder is bind-mounted (read-only) into the container |
-| `GEMINI_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.gemini` directory; only its `tmp/` subfolder and `projects.json` file are bind-mounted (read-only) into the container |
+| `CLAUDE_HOME_DIR` | falls back to `.empty/` (0 sessions) | Host path to your `~/.claude` directory; only its `projects/` subfolder is bind-mounted (read-only) into the container. Written automatically by `setup.sh`/`setup.ps1` if found |
+| `CODEX_HOME_DIR` | falls back to `.empty/` (0 sessions) | Host path to your `~/.codex` directory; only its `sessions/` subfolder is bind-mounted (read-only) into the container. Written automatically by `setup.sh`/`setup.ps1` if found |
+| `GEMINI_HOME_DIR` | falls back to `.empty/` (0 sessions) | Host path to your `~/.gemini` directory; only its `tmp/` subfolder and `projects.json` file are bind-mounted (read-only) into the container. Written automatically by `setup.sh`/`setup.ps1` if found |
 | `PORT` | `4545` | Port the Express server listens on inside the container (mapped 1:1 in `docker-compose.yml`) |
 | `CLAUDE_DIR` | `/data/claude` | In-container path the backend reads Claude sessions from (set by `docker-compose.yml`, rarely needs changing) |
 | `CODEX_DIR` | `/data/codex` | In-container path the backend reads Codex sessions from |
@@ -286,3 +287,11 @@ None of this makes the app safe to expose beyond `localhost` — do not remove t
 
 ---
 *Built to visualize local AI-agent session history — zero API calls, zero tokens spent.*
+
+<div align="center">
+
+If this saved you some time, consider buying me a coffee ☕
+
+<a href="https://buymeacoffee.com/axmatov"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee"></a>
+
+</div>
