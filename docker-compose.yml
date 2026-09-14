@@ -1,0 +1,19 @@
+services:
+  claude-brain:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: claude-brain:local
+    container_name: claude-brain
+    ports:
+      - "4545:4545"
+    environment:
+      PORT: 4545
+      CLAUDE_DIR: /data/claude
+      CODEX_DIR: /data/codex
+      GEMINI_DIR: /data/gemini
+    volumes:
+      - ${CLAUDE_HOME_DIR}:/data/claude:ro
+      - ${CODEX_HOME_DIR}:/data/codex:ro
+      - ${GEMINI_HOME_DIR}:/data/gemini:ro
+    restart: unless-stopped

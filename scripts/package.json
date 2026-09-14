@@ -1,0 +1,9 @@
+{
+  "name": "claude-brain-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dev tooling (not shipped in the Docker image) — e.g. the screenshot script for README docs.",
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Claude Brain</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Bundled locally (npm deps served by our own backend) instead of a
+       CDN — see server.js's /vendor routes. Fully offline, no external
+       network dependency for the UI to work. -->
+  <script src="vendor/vis-network/vis-network.min.js"></script>
+  <script src="vendor/chart.js/chart.umd.js"></script>
+</head>
+<body>
+  <div id="scanlines"></div>
+
+  <header id="topbar">
+    <div class="brand">&gt; CLAUDE_BRAIN<span class="cursor">_</span></div>
+    <div id="ticker" class="ticker"><span id="tickerText">idle — watching for activity...</span></div>
+    <nav id="tabs">
+      <button class="tab active" data-tab="graph">Mind Map</button>
+      <button class="tab" data-tab="stats">Stats</button>
+      <button class="tab" data-tab="sessions">Sessions</button>
+    </nav>
+  </header>
+
+  <div id="agentBar">
+    <div id="agentChips"></div>
+  </div>
+
+  <main>
+    <section id="view-graph" class="view active">
+      <div id="graphContainer"></div>
+      <div id="sizeHud"><span id="sizeHudLabel">Σ SIZE</span><span id="sizeHudValue">0 B</span></div>
+      <aside id="detailPanel" class="hidden">
+        <button id="closeDetail">&times;</button>
+        <div id="detailContent"></div>
+      </aside>
+    </section>
+
+    <section id="view-stats" class="view">
+      <div id="statCards"></div>
+      <div id="heatmapWrap">
+        <h3>ACTIVITY // last 365 days</h3>
+        <div id="heatmap"></div>
+      </div>
+
+      <div id="trendWrap">
+        <div id="trendHeader">
+          <h3>ACTIVITY TREND</h3>
+          <div id="periodControls">
+            <div id="periodChips">
+              <button class="period-chip" data-period="hour">Hourly</button>
+              <button class="period-chip active" data-period="day">Daily</button>
+              <button class="period-chip" data-period="year">Yearly</button>
+              <button class="period-chip" data-period="custom">Custom</button>
+            </div>
+            <div id="customRange" class="hidden">
+              <button type="button" class="date-trigger" id="rangeFromBtn" data-field="from">select date</button>
+              <span class="date-sep">&ndash;</span>
+              <button type="button" class="date-trigger" id="rangeToBtn" data-field="to">select date</button>
+              <button id="applyRangeBtn">Apply</button>
+            </div>
+          </div>
+        </div>
+        <div id="chartWrap"><canvas id="activityChart"></canvas></div>
+      </div>
+    </section>
+
+    <section id="view-sessions" class="view">
+      <div id="sessionsToolbar">
+        <select id="agentFilterSelect">
+          <option value="">all agents</option>
+        </select>
+        <button id="deleteSelectedBtn" disabled>Delete selected</button>
+        <span id="sessionsTotalSize"></span>
+        <div id="dangerZone"></div>
+      </div>
+      <table id="sessionsTable">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="selectAll" /></th>
+            <th>Agent</th>
+            <th>Project</th>
+            <th>Started</th>
+            <th>Duration</th>
+            <th>Msgs</th>
+            <th>Tokens</th>
+            <th>Size</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="sessionsBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="modalOverlay" class="hidden">
+    <div id="modalBox"></div>
+  </div>
+
+  <div id="datePicker" class="hidden">
+    <div id="dpHeader">
+      <button type="button" id="dpPrev" aria-label="previous month">&#8593;</button>
+      <span id="dpMonthLabel"></span>
+      <button type="button" id="dpNext" aria-label="next month">&#8595;</button>
+    </div>
+    <div id="dpWeekdays"></div>
+    <div id="dpDays"></div>
+    <div id="dpFooter">
+      <button type="button" id="dpClear">Clear</button>
+      <button type="button" id="dpToday">Today</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

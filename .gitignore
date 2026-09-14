@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Local environment (contains machine-specific host paths)
+.env
+.env.*
+!.env.example
+
+# Playwright
+scripts/test-results/
+scripts/playwright-report/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
