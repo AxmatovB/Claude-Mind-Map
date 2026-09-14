@@ -6,14 +6,28 @@ services:
     image: claude-brain:local
     container_name: claude-brain
     ports:
-      - "4545:4545"
+      # Bound to loopback only — this app has no authentication and exposes
+      # destructive endpoints (delete/wipe session data), so it must not be
+      # reachable from other machines on the network. Without the
+      # 127.0.0.1 prefix, Docker publishes the port on 0.0.0.0 (every
+      # interface) by default, which would let anyone on the same LAN hit it.
+      - "127.0.0.1:4545:4545"
     environment:
       PORT: 4545
       CLAUDE_DIR: /data/claude
       CODEX_DIR: /data/codex
       GEMINI_DIR: /data/gemini
     volumes:
-      - ${CLAUDE_HOME_DIR}:/data/claude:ro
-      - ${CODEX_HOME_DIR}:/data/codex:ro
-      - ${GEMINI_HOME_DIR}:/data/gemini:ro
+      # Mounted narrowly — only the subpaths the parsers actually read, not
+      # the whole home-config directory. The full ~/.claude, ~/.codex and
+      # ~/.gemini dirs contain credentials the app has no business touching
+      # (e.g. ~/.claude/.credentials.json, ~/.gemini/oauth_creds.json,
+      # ~/.codex/.sandbox-secrets/); mounting the whole tree — even
+      # read-only — would still hand every process in the container access
+      # to those files. If you don't have one of these agents installed,
+      # delete its two lines here and the matching entry in .env.
+      - ${CLAUDE_HOME_DIR}/projects:/data/claude/projects:ro
+      - ${CODEX_HOME_DIR}/sessions:/data/codex/sessions:ro
+      - ${GEMINI_HOME_DIR}/tmp:/data/gemini/tmp:ro
+      - ${GEMINI_HOME_DIR}/projects.json:/data/gemini/projects.json:ro
     restart: unless-stopped

@@ -36,6 +36,7 @@ Claude Brain is a self-hosted, Docker-packaged dashboard that turns your local *
 - [Configuration](#configuration)
 - [Usage Examples](#usage-examples)
 - [Project Structure](#project-structure)
+- [Security Model](#security-model)
 - [Known Limitations](#known-limitations)
 - [Contributing](#contributing)
 - [License](#license)
@@ -181,9 +182,9 @@ docker compose down
 
 | Variable | Default | Description |
 |---|---|---|
-| `CLAUDE_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.claude` directory; bind-mounted read-only to `/data/claude` |
-| `CODEX_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.codex` directory; bind-mounted read-only to `/data/codex` |
-| `GEMINI_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.gemini` directory; bind-mounted read-only to `/data/gemini` |
+| `CLAUDE_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.claude` directory; only its `projects/` subfolder is bind-mounted (read-only) into the container |
+| `CODEX_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.codex` directory; only its `sessions/` subfolder is bind-mounted (read-only) into the container |
+| `GEMINI_HOME_DIR` | *(none, required in `.env`)* | Host path to your `~/.gemini` directory; only its `tmp/` subfolder and `projects.json` file are bind-mounted (read-only) into the container |
 | `PORT` | `4545` | Port the Express server listens on inside the container (mapped 1:1 in `docker-compose.yml`) |
 | `CLAUDE_DIR` | `/data/claude` | In-container path the backend reads Claude sessions from (set by `docker-compose.yml`, rarely needs changing) |
 | `CODEX_DIR` | `/data/codex` | In-container path the backend reads Codex sessions from |
@@ -250,12 +251,21 @@ claude-brain/
 └── README.md
 ```
 
+## Security Model
+
+This app has **no login and no access control** — its entire safety model is "only reachable from this machine," which is enforced at three layers rather than assumed:
+
+- **Docker port binding.** `docker-compose.yml` publishes the port as `127.0.0.1:4545:4545`, not `4545:4545` — the latter would publish on every network interface (`0.0.0.0`), making the dashboard (and its destructive delete/wipe endpoints) reachable by anyone else on the same LAN.
+- **Host-header guard.** Every HTTP request and every WebSocket upgrade is checked against a loopback allowlist (`localhost` / `127.0.0.1` / `::1`) in `backend/server.js`, and anything else gets `403`/`401`. This specifically blocks **DNS-rebinding** attacks, where a malicious page gets a browser to resolve an attacker-controlled domain to `127.0.0.1` mid-session — the request's `Origin` still looks same-origin to the browser, but the `Host` header reveals the mismatch, which is what's actually checked.
+- **Narrow bind mounts.** `docker-compose.yml` mounts only `~/.claude/projects`, `~/.codex/sessions`, `~/.gemini/tmp`, and `~/.gemini/projects.json` — not the whole `~/.claude`, `~/.codex`, `~/.gemini` directories. Those full directories contain live credentials (`~/.claude/.credentials.json`, `~/.gemini/oauth_creds.json`, `~/.codex/.sandbox-secrets/`) that this app has no reason to ever touch; mounting only the transcript subpaths means those files never enter the container at all, even read-only.
+
+None of this makes the app safe to expose beyond `localhost` — do not remove the `127.0.0.1` prefix from the port mapping or put this behind a public reverse proxy without adding real authentication first.
+
 ## Known Limitations
 
 - **Project-name decoding is lossy.** Claude Code encodes a project's real path into its folder name by replacing path separators (and other characters like `.` and spaces) with `-`; decoding that back to a real path is a best-effort guess, not a guaranteed reversal (see the comment in `backend/parsers/claude.js`).
 - **Gemini sessions carry no token counts.** The Gemini CLI transcript format doesn't include usage/token fields, so Gemini sessions always report `0` tokens in stats — this is a data-availability gap, not a bug.
 - **"Active" is an mtime heuristic.** A session is marked live if its transcript file was modified in the last 5 minutes (`ACTIVE_WINDOW_MS`) — there's no direct signal from the CLIs themselves that a session is actively in a conversation turn.
-- **No authentication.** The app has no login and no access control; it's designed to run on `localhost` for a single user, not to be exposed on a network.
 - **In-memory only.** There's no database — the session store is rebuilt from disk on every container restart. Deleting a session or wiping an agent deletes the underlying `.jsonl` file permanently; there is no undo, trash, or backup step built in.
 - **Single-container, single-instance.** No horizontal scaling, no multi-user support — this is a personal local tool, not a hosted service.
 

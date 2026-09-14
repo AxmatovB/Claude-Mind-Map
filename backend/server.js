@@ -119,8 +119,31 @@ function broadcast(msg) {
   }
 }
 
+// ---- Loopback-only access guard ----
+// This app has zero authentication and exposes destructive endpoints
+// (delete a session's transcript, wipe an entire agent's history). Its
+// safety model is entirely "only reachable from this machine" — so that
+// has to be enforced explicitly, not just assumed from the Docker port
+// mapping. A request's Host header reflects what the browser's address bar
+// says, which an attacker can point at "localhost" via DNS rebinding even
+// while the request itself is driven by a page on a completely different
+// origin; checking Host (not just relying on CORS/Origin, which a
+// same-origin DNS-rebound page still satisfies) is what actually blocks
+// that. Applied to both the HTTP API and the WebSocket upgrade below.
+function isLoopbackHost(hostHeader) {
+  if (!hostHeader) return false;
+  const host = hostHeader.split(':')[0].toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+}
+
 // ---- Express app ----
 const app = express();
+app.use((req, res, next) => {
+  if (!isLoopbackHost(req.headers.host)) {
+    return res.status(403).json({ error: 'forbidden: this app only accepts loopback requests' });
+  }
+  next();
+});
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
@@ -284,7 +307,18 @@ fullRescan();
 setupWatchers();
 
 const server = http.createServer(app);
-wss = new WebSocketServer({ server, path: '/ws' });
+// WebSocket upgrades bypass the Express middleware chain entirely (they're
+// handled via the http.Server's 'upgrade' event, not Express's 'request'
+// event), so the Host guard above doesn't cover this — it needs its own
+// check here. Without it, any page (via DNS rebinding or an attacker
+// convincing a browser to open ws://localhost:PORT/ws directly) could open
+// a live WebSocket and receive every session_update/activity broadcast
+// (project paths, session ids, tool usage) regardless of the HTTP guard.
+wss = new WebSocketServer({
+  server,
+  path: '/ws',
+  verifyClient: (info) => isLoopbackHost(info.req.headers.host),
+});
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'hello', sessions: sessionStore.size }));
 });
