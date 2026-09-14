@@ -24,10 +24,17 @@ services:
       # (e.g. ~/.claude/.credentials.json, ~/.gemini/oauth_creds.json,
       # ~/.codex/.sandbox-secrets/); mounting the whole tree — even
       # read-only — would still hand every process in the container access
-      # to those files. If you don't have one of these agents installed,
-      # delete its two lines here and the matching entry in .env.
-      - ${CLAUDE_HOME_DIR}/projects:/data/claude/projects:ro
-      - ${CODEX_HOME_DIR}/sessions:/data/codex/sessions:ro
-      - ${GEMINI_HOME_DIR}/tmp:/data/gemini/tmp:ro
-      - ${GEMINI_HOME_DIR}/projects.json:/data/gemini/projects.json:ro
+      # to those files.
+      #
+      # Each ${VAR:-./.empty} falls back to the repo's own empty placeholder
+      # directory when that .env variable isn't set — run ./setup.sh (or
+      # setup.ps1 on Windows) to generate .env automatically for whichever
+      # agents you actually have installed. This means the container always
+      # starts cleanly, on anyone's machine, whether they have one agent or
+      # all three: a missing agent just mounts an empty read-only folder
+      # (0 sessions for it) instead of failing the whole build.
+      - ${CLAUDE_HOME_DIR:-./.empty}/projects:/data/claude/projects:ro
+      - ${CODEX_HOME_DIR:-./.empty}/sessions:/data/codex/sessions:ro
+      - ${GEMINI_HOME_DIR:-./.empty}/tmp:/data/gemini/tmp:ro
+      - ${GEMINI_HOME_DIR:-./.empty}/projects.json:/data/gemini/projects.json:ro
     restart: unless-stopped

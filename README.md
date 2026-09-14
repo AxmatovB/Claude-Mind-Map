@@ -154,23 +154,23 @@ flowchart LR
 
 ## Installation & Quick Start
 
+No manual path editing required — the setup script detects which agents you actually have installed and writes `.env` for you, so this works the same way on your machine as anyone else's, regardless of username or OS.
+
 ```bash
 git clone https://github.com/AxmatovB/Claude-Mind-Map.git
 cd Claude-Mind-Map
 
-# Point the app at your actual agent config directories
-cp .env.example .env
-# then edit .env with your real paths, e.g.:
-#   CLAUDE_HOME_DIR=C:/Users/you/.claude
-#   CODEX_HOME_DIR=C:/Users/you/.codex
-#   GEMINI_HOME_DIR=C:/Users/you/.gemini
+# Mac/Linux/WSL/Git Bash:
+./setup.sh
+# Native Windows PowerShell instead:
+#   .\setup.ps1
 
 docker compose up -d --build
 ```
 
 Open **http://localhost:4545**.
 
-If you don't have one of the three agents installed, delete its line from `.env` and comment out the matching `volumes:` entry in `docker-compose.yml` — the backend skips a missing directory silently rather than erroring.
+The setup script only writes `.env` entries for agents it actually finds (`~/.claude`, `~/.codex`, `~/.gemini`); anything not found is simply left out. `docker-compose.yml` falls back to an empty placeholder directory (`.empty/`) for any variable that isn't set, so the container always starts cleanly whether you have one agent installed or all three — a missing agent just shows `0` sessions for it instead of breaking the build. Re-run the setup script any time (e.g. after installing a new agent) to pick it up.
 
 To stop:
 
@@ -246,8 +246,11 @@ claude-brain/
 │   └── package.json         # Dev-only tooling deps, not shipped in the image
 ├── docs/
 │   └── screenshots/         # README screenshots
-├── docker-compose.yml        # One-command orchestration, read-only agent mounts
-├── .env.example               # Template for the host paths docker-compose needs
+├── .empty/                  # Placeholder mount target for agents you don't have installed
+├── docker-compose.yml       # One-command orchestration, read-only agent mounts
+├── setup.sh                 # Auto-detects installed agents, writes .env (Mac/Linux/WSL/Git Bash)
+├── setup.ps1                # Same, for native Windows PowerShell
+├── .env.example              # Manual-setup reference (setup.sh/setup.ps1 write .env for you)
 └── README.md
 ```
 
