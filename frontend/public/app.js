@@ -5,6 +5,7 @@ const AGENT_COLORS = {
   claude: '#ffb300',
   codex: '#00fff2',
   gemini: '#ff2fd0',
+  antigravity: '#7b61ff',
 };
 
 function esc(str) {

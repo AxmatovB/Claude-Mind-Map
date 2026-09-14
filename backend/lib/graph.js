@@ -1,7 +1,7 @@
 // Builds a nodes/edges graph from parsed sessions:
 // hub -> agent -> project -> session -> {tool, file/topic} leaves.
 
-const AGENT_LABEL = { claude: 'Claude Code', codex: 'Codex CLI', gemini: 'Gemini CLI' };
+const AGENT_LABEL = { claude: 'Claude Code', codex: 'Codex CLI', gemini: 'Gemini CLI', antigravity: 'Antigravity' };
 
 function buildGraph(sessions) {
   const nodes = new Map();

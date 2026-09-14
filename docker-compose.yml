@@ -17,6 +17,7 @@ services:
       CLAUDE_DIR: /data/claude
       CODEX_DIR: /data/codex
       GEMINI_DIR: /data/gemini
+      ANTIGRAVITY_DIR: /data/antigravity
     volumes:
       # Mounted narrowly — only the subpaths the parsers actually read, not
       # the whole home-config directory. The full ~/.claude, ~/.codex and
@@ -37,4 +38,9 @@ services:
       - ${CODEX_HOME_DIR:-./.empty}/sessions:/data/codex/sessions:ro
       - ${GEMINI_HOME_DIR:-./.empty}/tmp:/data/gemini/tmp:ro
       - ${GEMINI_HOME_DIR:-./.empty}/projects.json:/data/gemini/projects.json:ro
+      # Antigravity (antigravity-cli) is a separate product from Gemini CLI
+      # with its own storage format, even though it also lives under
+      # ~/.gemini on disk — see backend/parsers/antigravity.js.
+      - ${ANTIGRAVITY_HOME_DIR:-./.empty}/brain:/data/antigravity/brain:ro
+      - ${ANTIGRAVITY_HOME_DIR:-./.empty}/annotations:/data/antigravity/annotations:ro
     restart: unless-stopped

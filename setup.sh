@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Auto-generates .env for this machine — detects which of Claude Code,
-# Codex CLI, and Gemini CLI are actually installed (by checking for their
-# config directories under $HOME) and writes only those into .env. Safe to
-# re-run any time; it overwrites .env with a fresh detection.
+# Codex CLI, Gemini CLI, and Antigravity are actually installed (by
+# checking for their config directories under $HOME) and writes only those
+# into .env. Safe to re-run any time; it overwrites .env with a fresh
+# detection.
 #
 # For native Windows without Git Bash/WSL, use setup.ps1 instead.
 set -euo pipefail
@@ -46,15 +47,16 @@ check_agent() {
 }
 
 echo "Detecting installed AI CLI agents under $HOME_DIR ..."
-check_agent "Claude Code" "$HOME_DIR/.claude" "CLAUDE_HOME_DIR"
-check_agent "Codex CLI"   "$HOME_DIR/.codex"  "CODEX_HOME_DIR"
-check_agent "Gemini CLI"  "$HOME_DIR/.gemini" "GEMINI_HOME_DIR"
+check_agent "Claude Code" "$HOME_DIR/.claude"                   "CLAUDE_HOME_DIR"
+check_agent "Codex CLI"   "$HOME_DIR/.codex"                    "CODEX_HOME_DIR"
+check_agent "Gemini CLI"  "$HOME_DIR/.gemini"                   "GEMINI_HOME_DIR"
+check_agent "Antigravity" "$HOME_DIR/.gemini/antigravity-cli"   "ANTIGRAVITY_HOME_DIR"
 
 if [ "$found_any" = false ]; then
   echo
   echo "No agent config directories found. Claude Brain will still start (with" >&2
   echo "nothing to show) — install and use one of Claude Code / Codex CLI /" >&2
-  echo "Gemini CLI at least once, then re-run this script." >&2
+  echo "Gemini CLI / Antigravity at least once, then re-run this script." >&2
 fi
 
 printf '%s\n' "${lines[@]}" > "$ENV_FILE"

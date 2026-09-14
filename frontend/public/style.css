@@ -7,6 +7,7 @@
   --cyan: #00fff2;
   --magenta: #ff2fd0;
   --amber: #ffb300;
+  --violet: #7b61ff;
   --green: #39ff88;
   --text: #d8fdf5;
   --dim: #6b7a86;
@@ -141,6 +142,7 @@ html, body {
 .chip.claude { color: var(--amber); box-shadow: 0 0 10px rgba(255,179,0,0.35); }
 .chip.codex { color: var(--cyan); box-shadow: 0 0 10px rgba(0,255,242,0.35); }
 .chip.gemini { color: var(--magenta); box-shadow: 0 0 10px rgba(255,47,208,0.35); }
+.chip.antigravity { color: var(--violet); box-shadow: 0 0 10px rgba(123,97,255,0.35); }
 
 main { height: calc(100vh - 108px); position: relative; }
 .view { display: none; height: 100%; }
@@ -334,6 +336,7 @@ tr:hover td { background: rgba(0,255,242,0.03); }
 .agent-badge.claude { color: var(--amber); }
 .agent-badge.codex { color: var(--cyan); }
 .agent-badge.gemini { color: var(--magenta); }
+.agent-badge.antigravity { color: var(--violet); }
 .row-del { color: var(--magenta); background: none; border: none; cursor: pointer; }
 
 #modalOverlay {

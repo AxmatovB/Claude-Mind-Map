@@ -1,7 +1,8 @@
 # Auto-generates .env for this machine — detects which of Claude Code,
-# Codex CLI, and Gemini CLI are actually installed (by checking for their
-# config directories under your user profile) and writes only those into
-# .env. Safe to re-run any time; it overwrites .env with a fresh detection.
+# Codex CLI, Gemini CLI, and Antigravity are actually installed (by
+# checking for their config directories under your user profile) and
+# writes only those into .env. Safe to re-run any time; it overwrites .env
+# with a fresh detection.
 #
 # Usage (from the repo root, in PowerShell):
 #   .\setup.ps1
@@ -32,13 +33,14 @@ function Test-Agent {
 }
 
 Write-Host "Detecting installed AI CLI agents under $homeDir ..."
-Test-Agent -Name "Claude Code" -Dir (Join-Path $homeDir ".claude") -VarName "CLAUDE_HOME_DIR"
-Test-Agent -Name "Codex CLI"   -Dir (Join-Path $homeDir ".codex")  -VarName "CODEX_HOME_DIR"
-Test-Agent -Name "Gemini CLI"  -Dir (Join-Path $homeDir ".gemini") -VarName "GEMINI_HOME_DIR"
+Test-Agent -Name "Claude Code" -Dir (Join-Path $homeDir ".claude")                     -VarName "CLAUDE_HOME_DIR"
+Test-Agent -Name "Codex CLI"   -Dir (Join-Path $homeDir ".codex")                      -VarName "CODEX_HOME_DIR"
+Test-Agent -Name "Gemini CLI"  -Dir (Join-Path $homeDir ".gemini")                     -VarName "GEMINI_HOME_DIR"
+Test-Agent -Name "Antigravity" -Dir (Join-Path $homeDir ".gemini\antigravity-cli")     -VarName "ANTIGRAVITY_HOME_DIR"
 
 if (-not $foundAny) {
     Write-Host ""
-    Write-Warning "No agent config directories found. Claude Brain will still start (with nothing to show) - install and use one of Claude Code / Codex CLI / Gemini CLI at least once, then re-run this script."
+    Write-Warning "No agent config directories found. Claude Brain will still start (with nothing to show) - install and use one of Claude Code / Codex CLI / Gemini CLI / Antigravity at least once, then re-run this script."
 }
 
 $lines | Set-Content -Path $envFile -Encoding utf8

@@ -23,7 +23,7 @@
 
 ## Pitch
 
-Claude Brain is a self-hosted, Docker-packaged dashboard that turns your local **Claude Code**, **Codex CLI**, and **Gemini CLI** session transcripts into an interactive, cyberpunk-themed mind map, a usage-stats view, and a session manager. It's built for anyone who lives in these CLIs and wants to actually *see* what they've been working on — which projects, which tools, how much history has piled up — without sending a single byte to an LLM API. Every byte it shows comes from parsing `.jsonl` files already sitting on your disk.
+Claude Brain is a self-hosted, Docker-packaged dashboard that turns your local **Claude Code**, **Codex CLI**, **Gemini CLI**, and **Antigravity** session transcripts into an interactive, cyberpunk-themed mind map, a usage-stats view, and a session manager. It's built for anyone who lives in these CLIs and wants to actually *see* what they've been working on — which projects, which tools, how much history has piled up — without sending a single byte to an LLM API. Every byte it shows comes from parsing `.jsonl` files already sitting on your disk.
 
 ## Table of Contents
 
@@ -48,7 +48,7 @@ Claude Brain is a self-hosted, Docker-packaged dashboard that turns your local *
 - Gentle continuous "breathing" physics — never freezes, never lets nodes collide/overlap
 - Click any node (not just sessions) to open a full detail panel on the right, showing that node's connected sessions
 - Live sessions (transcript touched within the last 5 minutes) glow white with a slow sine-wave pulse
-- Per-agent filter chips (Claude/Codex/Gemini) with live session-count badges, toggle to show/hide instantly
+- Per-agent filter chips (Claude/Codex/Gemini/Antigravity) with live session-count badges, toggle to show/hide instantly
 - A live "Σ SIZE" readout of total transcript size for whatever's currently visible
 
 ### Stats
@@ -73,7 +73,7 @@ Claude Brain is a self-hosted, Docker-packaged dashboard that turns your local *
 ## Screenshots
 
 ### 🧠 Mind Map — Overview
-Force-directed graph of every parsed session across all three agents, colored by agent (amber = Claude, cyan = Codex, magenta = Gemini).
+Force-directed graph of every parsed session across all four agents, colored by agent (amber = Claude, cyan = Codex, magenta = Gemini, violet = Antigravity).
 ![Mind map overview](docs/screenshots/mindmap-overview.png)
 
 ### 🧠 Mind Map — Node Detail
@@ -93,12 +93,12 @@ A fully custom-built calendar (not the native OS date input) for picking a custo
 ![Custom date range picker](docs/screenshots/stats-date-picker.png)
 
 ### 🗂️ Session Manager
-Every session across all three agents in one sortable, filterable, bulk-selectable table — with per-row file size and delete.
+Every session across all four agents in one sortable, filterable, bulk-selectable table — with per-row file size and delete.
 ![Session manager](docs/screenshots/session-manager.png)
 
 ## Architecture Overview
 
-The backend is a single Node.js/Express process. On startup it walks three read-only bind-mounted directories, parses every session transcript it finds into one common shape, and keeps the result in an in-memory `Map`. A `chokidar` watcher scoped to just the transcript subtrees keeps that map live as you use your CLIs — new lines written to a `.jsonl` file trigger a re-parse of that one file and a WebSocket broadcast. The frontend is a plain HTML/CSS/JS single-page app (no build step, no framework) that polls the REST API and listens on the WebSocket, rendering the mind map with `vis-network` and the trend chart with `Chart.js` — both served locally by the same Express process rather than pulled from a CDN.
+The backend is a single Node.js/Express process. On startup it walks four read-only bind-mounted directories, parses every session transcript it finds into one common shape, and keeps the result in an in-memory `Map`. A `chokidar` watcher scoped to just the transcript subtrees keeps that map live as you use your CLIs — new lines written to a transcript file trigger a re-parse of that one file and a WebSocket broadcast. The frontend is a plain HTML/CSS/JS single-page app (no build step, no framework) that polls the REST API and listens on the WebSocket, rendering the mind map with `vis-network` and the trend chart with `Chart.js` — both served locally by the same Express process rather than pulled from a CDN.
 
 ```mermaid
 flowchart LR
@@ -106,20 +106,24 @@ flowchart LR
         CC["~/.claude/projects/**/*.jsonl"]
         CX["~/.codex/sessions/**/*.jsonl"]
         GM["~/.gemini/tmp/**/*.jsonl"]
+        AG["~/.gemini/antigravity-cli/brain/**/transcript.jsonl"]
     end
 
     subgraph Container["claude-brain container"]
         CC -- "read-only bind mount" --> PC["claude parser"]
         CX -- "read-only bind mount" --> PX["codex parser"]
         GM -- "read-only bind mount" --> PG["gemini parser"]
+        AG -- "read-only bind mount" --> PA["antigravity parser"]
 
         PC --> Store["in-memory session store"]
         PX --> Store
         PG --> Store
+        PA --> Store
 
         Watcher["chokidar file watcher"] -. "add/change/unlink" .-> PC
         Watcher -. "add/change/unlink" .-> PX
         Watcher -. "add/change/unlink" .-> PG
+        Watcher -. "add/change/unlink" .-> PA
 
         Store --> API["REST API\n/api/sessions /api/graph /api/stats /api/timeseries"]
         Store --> WS["WebSocket /ws"]
@@ -149,7 +153,7 @@ flowchart LR
 - [ ] Docker Engine and Docker Compose v2 (tested with Docker 29 / Compose v5)
 - [ ] Bash (macOS/Linux/WSL/Git Bash) to run `setup.sh`, **or** PowerShell (built into Windows) to run `setup.ps1` — either generates `.env` for you, see [Installation & Quick Start](#installation--quick-start)
 - [ ] Node.js 20+ — only needed if you want to run `backend/server.js` outside Docker, or run the screenshot tooling in `scripts/`
-- [ ] One or more of: **Claude Code**, **Codex CLI**, or **Gemini CLI** already installed and used at least once, so there's `.jsonl` session data under `~/.claude`, `~/.codex`, or `~/.gemini` to visualize
+- [ ] One or more of: **Claude Code**, **Codex CLI**, **Gemini CLI**, or **Antigravity** already installed and used at least once, so there's session data under `~/.claude`, `~/.codex`, `~/.gemini`, or `~/.gemini/antigravity-cli` to visualize
 - [ ] Free disk space roughly equal to your combined agent session history (the app doesn't copy or duplicate it — it reads the mounted files directly — but leave headroom; a heavy CLI user can accumulate 1 GB+ of transcripts)
 - [ ] Port `4545` free on `localhost` (configurable, see [Configuration](#configuration))
 
@@ -186,10 +190,12 @@ docker compose down
 | `CLAUDE_HOME_DIR` | falls back to `.empty/` (0 sessions) | Host path to your `~/.claude` directory; only its `projects/` subfolder is bind-mounted (read-only) into the container. Written automatically by `setup.sh`/`setup.ps1` if found |
 | `CODEX_HOME_DIR` | falls back to `.empty/` (0 sessions) | Host path to your `~/.codex` directory; only its `sessions/` subfolder is bind-mounted (read-only) into the container. Written automatically by `setup.sh`/`setup.ps1` if found |
 | `GEMINI_HOME_DIR` | falls back to `.empty/` (0 sessions) | Host path to your `~/.gemini` directory; only its `tmp/` subfolder and `projects.json` file are bind-mounted (read-only) into the container. Written automatically by `setup.sh`/`setup.ps1` if found |
+| `ANTIGRAVITY_HOME_DIR` | falls back to `.empty/` (0 sessions) | Host path to your `~/.gemini/antigravity-cli` directory (Antigravity is a separate product from Gemini CLI); only its `brain/` and `annotations/` subfolders are bind-mounted (read-only). Written automatically by `setup.sh`/`setup.ps1` if found |
 | `PORT` | `4545` | Port the Express server listens on inside the container (mapped 1:1 in `docker-compose.yml`) |
 | `CLAUDE_DIR` | `/data/claude` | In-container path the backend reads Claude sessions from (set by `docker-compose.yml`, rarely needs changing) |
 | `CODEX_DIR` | `/data/codex` | In-container path the backend reads Codex sessions from |
 | `GEMINI_DIR` | `/data/gemini` | In-container path the backend reads Gemini sessions from |
+| `ANTIGRAVITY_DIR` | `/data/antigravity` | In-container path the backend reads Antigravity sessions from |
 | `ACTIVE_WINDOW_MS` | `300000` (5 min) | How recently a transcript file must have been touched for its session to be marked "live" in the UI |
 
 ## Usage Examples
@@ -230,7 +236,8 @@ claude-brain/
 │   ├── parsers/
 │   │   ├── claude.js        # Parses ~/.claude/projects/**/*.jsonl
 │   │   ├── codex.js         # Parses ~/.codex/sessions/**/rollout-*.jsonl
-│   │   └── gemini.js        # Parses ~/.gemini/tmp/**/chats/session-*.jsonl
+│   │   ├── gemini.js        # Parses ~/.gemini/tmp/**/chats/session-*.jsonl
+│   │   └── antigravity.js   # Parses ~/.gemini/antigravity-cli/brain/**/transcript.jsonl
 │   ├── lib/
 │   │   ├── graph.js         # Builds the mind-map node/edge structure
 │   │   ├── stats.js         # Aggregate stats + zero-filled time series
@@ -261,14 +268,15 @@ This app has **no login and no access control** — its entire safety model is "
 
 - **Docker port binding.** `docker-compose.yml` publishes the port as `127.0.0.1:4545:4545`, not `4545:4545` — the latter would publish on every network interface (`0.0.0.0`), making the dashboard (and its destructive delete/wipe endpoints) reachable by anyone else on the same LAN.
 - **Host- and Origin-header guards.** Every HTTP request and every WebSocket upgrade is checked against a loopback allowlist (`localhost` / `127.0.0.1` / `::1`) in `backend/server.js`, and anything mismatched gets `403`/`401`. These are two separate checks for two separate attacks: **Host** blocks DNS rebinding (an attacker-controlled domain resolved to `127.0.0.1` mid-session, so the browser's Host header says "localhost" while the page itself is still on another origin); **Origin** blocks cross-site WebSocket hijacking, where a page on any other site opens `ws://localhost:4545/ws` directly — that connection has a perfectly correct Host header (it really is connecting to localhost) but carries the initiating page's real Origin, which only an explicit Origin check catches. Both checks only reject when the header is *present and mismatched* — a request with no Origin at all (curl, or a non-browser WebSocket client) is allowed, since a real browser can't spoof or omit Origin on a cross-origin request.
-- **Narrow bind mounts.** `docker-compose.yml` mounts only `~/.claude/projects`, `~/.codex/sessions`, `~/.gemini/tmp`, and `~/.gemini/projects.json` — not the whole `~/.claude`, `~/.codex`, `~/.gemini` directories. Those full directories contain live credentials (`~/.claude/.credentials.json`, `~/.gemini/oauth_creds.json`, `~/.codex/.sandbox-secrets/`) that this app has no reason to ever touch; mounting only the transcript subpaths means those files never enter the container at all, even read-only.
+- **Narrow bind mounts.** `docker-compose.yml` mounts only `~/.claude/projects`, `~/.codex/sessions`, `~/.gemini/tmp`, `~/.gemini/projects.json`, and `~/.gemini/antigravity-cli/{brain,annotations}` — not the whole `~/.claude`, `~/.codex`, `~/.gemini` directories. Those full directories contain live credentials (`~/.claude/.credentials.json`, `~/.gemini/oauth_creds.json`, `~/.codex/.sandbox-secrets/`) that this app has no reason to ever touch; mounting only the transcript subpaths means those files never enter the container at all, even read-only.
 
 None of this makes the app safe to expose beyond `localhost` — do not remove the `127.0.0.1` prefix from the port mapping or put this behind a public reverse proxy without adding real authentication first.
 
 ## Known Limitations
 
 - **Project-name decoding is lossy.** Claude Code encodes a project's real path into its folder name by replacing path separators (and other characters like `.` and spaces) with `-`; decoding that back to a real path is a best-effort guess, not a guaranteed reversal (see the comment in `backend/parsers/claude.js`).
-- **Gemini sessions carry no token counts.** The Gemini CLI transcript format doesn't include usage/token fields, so Gemini sessions always report `0` tokens in stats — this is a data-availability gap, not a bug.
+- **Gemini and Antigravity sessions carry no token counts.** Neither transcript format includes usage/token fields, so their sessions always report `0` tokens in stats — this is a data-availability gap, not a bug.
+- **Antigravity's format is undocumented and reverse-engineered.** Unlike the other three (which have some public documentation of their transcript layout), `backend/parsers/antigravity.js` was written by inspecting real `~/.gemini/antigravity-cli` output on disk. It could change without notice in a future Antigravity release; if sessions stop appearing, that's the first place to check.
 - **"Active" is an mtime heuristic.** A session is marked live if its transcript file was modified in the last 5 minutes (`ACTIVE_WINDOW_MS`) — there's no direct signal from the CLIs themselves that a session is actively in a conversation turn.
 - **In-memory only.** There's no database — the session store is rebuilt from disk on every container restart. Deleting a session or wiping an agent deletes the underlying `.jsonl` file permanently; there is no undo, trash, or backup step built in.
 - **Single-container, single-instance.** No horizontal scaling, no multi-user support — this is a personal local tool, not a hosted service.

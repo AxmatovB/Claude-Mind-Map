@@ -1,7 +1,8 @@
 // Claude Brain backend.
 // Reads local AI-agent session transcripts (Claude Code, Codex CLI, Gemini
-// CLI) from disk, parses them deterministically, and serves a graph + stats
-// API plus a live WebSocket feed. This process NEVER calls any LLM API.
+// CLI, Antigravity) from disk, parses them deterministically, and serves a
+// graph + stats API plus a live WebSocket feed. This process NEVER calls
+// any LLM API.
 
 const fs = require('fs');
 const path = require('path');
@@ -13,6 +14,7 @@ const chokidar = require('chokidar');
 const claudeParser = require('./parsers/claude');
 const codexParser = require('./parsers/codex');
 const geminiParser = require('./parsers/gemini');
+const antigravityParser = require('./parsers/antigravity');
 const { buildGraph } = require('./lib/graph');
 const { computeStats, computeTimeseries } = require('./lib/stats');
 
@@ -20,14 +22,19 @@ const PORT = process.env.PORT || 4545;
 const CLAUDE_DIR = process.env.CLAUDE_DIR || '/data/claude';
 const CODEX_DIR = process.env.CODEX_DIR || '/data/codex';
 const GEMINI_DIR = process.env.GEMINI_DIR || '/data/gemini';
+// Antigravity is a separate product from Gemini CLI (different storage
+// format entirely — see parsers/antigravity.js), even though its config
+// also lives under ~/.gemini on disk. Mounted from its own subpath so it
+// gets its own narrow, non-credential-bearing bind mount.
+const ANTIGRAVITY_DIR = process.env.ANTIGRAVITY_DIR || '/data/antigravity';
 // A session counts as "live" if its transcript file was touched within this
 // window. 10s (the original value) meant a session went dark the moment you
 // paused to read a reply — 5 minutes tracks an actual ongoing conversation
 // (thinking/typing gaps included) without stale sessions glowing forever.
 const ACTIVE_WINDOW_MS = Number(process.env.ACTIVE_WINDOW_MS) || 5 * 60_000;
 
-const AGENT_DIRS = { claude: CLAUDE_DIR, codex: CODEX_DIR, gemini: GEMINI_DIR };
-const AGENT_PARSERS = { claude: claudeParser, codex: codexParser, gemini: geminiParser };
+const AGENT_DIRS = { claude: CLAUDE_DIR, codex: CODEX_DIR, gemini: GEMINI_DIR, antigravity: ANTIGRAVITY_DIR };
+const AGENT_PARSERS = { claude: claudeParser, codex: codexParser, gemini: geminiParser, antigravity: antigravityParser };
 
 // session_file -> session object
 let sessionStore = new Map();
@@ -44,15 +51,11 @@ function scanAgent(agent) {
 }
 
 function fullRescan() {
-  const all = [
-    ...scanAgent('claude'),
-    ...scanAgent('codex'),
-    ...scanAgent('gemini'),
-  ];
+  const all = Object.keys(AGENT_DIRS).flatMap(scanAgent);
   sessionStore = new Map(all.map((s) => [s.session_file, s]));
   markActive();
-  console.log(`[scan] loaded ${sessionStore.size} sessions ` +
-    `(claude=${countAgent('claude')}, codex=${countAgent('codex')}, gemini=${countAgent('gemini')})`);
+  const counts = Object.keys(AGENT_DIRS).map((a) => `${a}=${countAgent(a)}`).join(', ');
+  console.log(`[scan] loaded ${sessionStore.size} sessions (${counts})`);
 }
 
 function countAgent(agent) {
@@ -101,6 +104,11 @@ function rescanOneFile(agent, filePath) {
         if (slug === projectFolder) { label = realPath; break; }
       }
       parsed = geminiParser.parseSessionFile(filePath, label);
+    } else if (agent === 'antigravity') {
+      // filePath is .../brain/<uuid>/.system_generated/logs/transcript.jsonl
+      const sessionId = path.basename(path.dirname(path.dirname(path.dirname(filePath))));
+      const annotationsDir = path.join(ANTIGRAVITY_DIR, 'annotations');
+      parsed = antigravityParser.parseSessionFile(filePath, sessionId, annotationsDir);
     }
     if (parsed) {
       sessionStore.set(filePath, parsed);
@@ -192,6 +200,7 @@ app.get('/api/health', (req, res) => {
       claude: fs.existsSync(CLAUDE_DIR),
       codex: fs.existsSync(CODEX_DIR),
       gemini: fs.existsSync(GEMINI_DIR),
+      antigravity: fs.existsSync(ANTIGRAVITY_DIR),
     },
   });
 });
@@ -305,7 +314,8 @@ function setupWatchers() {
     }
     const watchDir = agent === 'codex' ? path.join(dir, 'sessions')
       : agent === 'gemini' ? path.join(dir, 'tmp')
-        : path.join(dir, 'projects');
+        : agent === 'antigravity' ? path.join(dir, 'brain')
+          : path.join(dir, 'projects');
     if (!fs.existsSync(watchDir)) continue;
 
     // Only ever watch the session-transcript subtree, never the whole
@@ -318,7 +328,13 @@ function setupWatchers() {
       depth: 6,
     });
 
-    const isRelevant = (p) => p.endsWith('.jsonl');
+    // Antigravity's session folders also contain transcript_full.jsonl and
+    // chunked copies under chunks/ — only the top-level transcript.jsonl is
+    // what parseSessionFile expects (its path layout assumption depends on
+    // it), so those other .jsonl files must be filtered out here.
+    const isRelevant = agent === 'antigravity'
+      ? (p) => path.basename(p) === 'transcript.jsonl' && path.basename(path.dirname(p)) === 'logs'
+      : (p) => p.endsWith('.jsonl');
 
     watcher.on('add', (p) => { if (isRelevant(p)) rescanOneFile(agent, p); });
     watcher.on('change', (p) => {
